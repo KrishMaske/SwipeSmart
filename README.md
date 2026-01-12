@@ -1,2 +1,2 @@
-# rae
+# SwipeSmart
 personal finance app
