@@ -3,7 +3,7 @@ from dotenv import load_dotenv
 import plaid
 from plaid.api import plaid_api
 from plaid.model.products import Products
-import sqlite3
+from supabase import create_client, Client
 
 load_dotenv()
 
@@ -29,8 +29,17 @@ configuration = plaid.Configuration(
 
 api_client = plaid.ApiClient(configuration)
 plaid_client = plaid_api.PlaidApi(api_client)
-conn = sqlite3.connect(DB_PATH)
 
 products = []
 for product in PLAID_PRODUCTS:
     products.append(Products(product))
+
+supabase_url = os.getenv("SUPABASE_URL")
+supabase_key = os.getenv("SUPABASE_KEY")
+supabase_secret = os.getenv("SUPABASE_SECRET_KEY")
+
+supabase = create_client(supabase_url, supabase_key)
+supabase_admin = create_client(supabase_url, supabase_secret)
+
+jwks_url = os.getenv("SUPABASE_JWKS_URL")
+

@@ -1,0 +1,550 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rae API + Plaid Test Console</title>
+
+    <style>
+      body {
+        font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial,
+          sans-serif;
+        margin: 24px;
+        background: #0b0f19;
+        color: #e8eefc;
+      }
+      .wrap {
+        max-width: 1000px;
+        margin: 0 auto;
+        display: grid;
+        gap: 14px;
+      }
+      .card {
+        background: #10182b;
+        border: 1px solid #213055;
+        border-radius: 14px;
+        padding: 16px;
+      }
+      h1 {
+        margin: 0 0 6px;
+        font-size: 22px;
+      }
+      h2 {
+        margin: 0 0 10px;
+        font-size: 16px;
+        color: #bcd0ff;
+      }
+      .row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+        align-items: end;
+      }
+      label {
+        display: block;
+        font-size: 13px;
+        color: #b8c7f2;
+        margin: 8px 0 6px;
+      }
+      input,
+      textarea,
+      select {
+        background: #0b1020;
+        color: #e8eefc;
+        border: 1px solid #263a6a;
+        border-radius: 12px;
+        padding: 10px;
+        outline: none;
+      }
+      input {
+        width: 280px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 90px;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+          monospace;
+      }
+      button {
+        padding: 10px 12px;
+        border-radius: 12px;
+        border: 1px solid #3354a3;
+        background: #1a2e63;
+        color: #e8eefc;
+        cursor: pointer;
+      }
+      button.secondary {
+        background: transparent;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: not-allowed;
+      }
+      .pill {
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        padding: 6px 10px;
+        border-radius: 999px;
+        border: 1px solid #263a6a;
+      }
+      .ok {
+        color: #75f0b5;
+      }
+      .bad {
+        color: #ff8080;
+      }
+      pre {
+        margin: 0;
+        background: #060a12;
+        border: 1px solid #263a6a;
+        border-radius: 12px;
+        padding: 12px;
+        overflow: auto;
+      }
+      .hint {
+        color: #93a7d8;
+        font-size: 13px;
+      }
+      .danger {
+        color: #ffb0b0;
+      }
+      .small {
+        font-size: 12px;
+        color: #93a7d8;
+      }
+    </style>
+
+    <!-- Plaid Link (required) -->
+    <script src="https://cdn.plaid.com/link/v2/stable/link-initialize.js"></script>
+  </head>
+
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>Rae Backend Test Console</h1>
+        <div class="row">
+          <div>
+            <label>API Base URL</label>
+            <input id="apiBase" value="http://localhost:8000" />
+          </div>
+
+          <div class="pill" id="authStatus">
+            <span>Status:</span>
+            <strong class="bad" id="authText">Signed out</strong>
+          </div>
+
+          <button class="secondary" id="btnClear">Clear Output</button>
+          <button class="secondary" id="btnLogout" disabled>
+            Logout (clear JWT)
+          </button>
+        </div>
+
+        <div class="hint small">
+          Tip: Keep DevTools Console open for Plaid Link events. Never paste
+          secrets like Plaid access tokens or encryption keys.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>1) Auth</h2>
+
+        <div class="row">
+          <div>
+            <label>Email</label>
+            <input id="email" placeholder="you@example.com" />
+          </div>
+          <div>
+            <label>Password</label>
+            <input id="password" type="password" placeholder="••••••••" />
+          </div>
+        </div>
+
+        <div class="row" style="margin-top: 10px">
+          <button id="btnSignup">Sign up</button>
+          <button id="btnSignin">Sign in</button>
+          <label class="pill" style="margin-left: auto">
+            <input type="checkbox" id="remember" />
+            <span class="small">Remember JWT (localStorage)</span>
+          </label>
+        </div>
+
+        <label>JWT (access token)</label>
+        <textarea
+          id="jwt"
+          placeholder="Auto-filled after signin. You can paste one here too."
+        ></textarea>
+        <div class="hint">
+          This JWT is what your backend verifies via JWKS and extracts
+          <code>sub</code> as user_id.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>2) Plaid</h2>
+
+        <div class="row">
+          <button id="btnCreateLink" disabled>Create Link Token</button>
+          <button id="btnOpenLink" disabled>Open Plaid Link</button>
+          <button id="btnExchange" disabled>Exchange Public Token</button>
+        </div>
+
+        <label>Public Token (auto-filled after Plaid Link success)</label>
+        <textarea
+          id="publicToken"
+          placeholder="This will be filled automatically by Plaid Link onSuccess."
+        ></textarea>
+
+        <div class="hint">
+          Flow: Create Link Token → Open Link → onSuccess gives public_token →
+          Exchange it (backend stores encrypted access_token).
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>3) DB / Transactions</h2>
+
+        <div class="row">
+          <button id="btnSyncDb" disabled>
+            Sync Transactions (Plaid → DB)
+          </button>
+          <button id="btnGetAll" class="secondary" disabled>
+            GET All Transactions (if route exists)
+          </button>
+          <button id="btnRecent" class="secondary" disabled>
+            GET Recent Transactions (if route exists)
+          </button>
+        </div>
+
+        <div class="hint">
+          The two GET buttons are optional — they call common routes if you have
+          them. If you don’t, they’ll just show an error.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Output</h2>
+        <pre id="out">{}</pre>
+      </div>
+    </div>
+
+    <script>
+      // ---------- State ----------
+      let jwt = null;
+      let linkToken = null;
+      let publicToken = null;
+      let plaidHandler = null;
+
+      // ---------- Elements ----------
+      const apiBaseEl = document.getElementById("apiBase");
+      const outEl = document.getElementById("out");
+      const jwtEl = document.getElementById("jwt");
+      const emailEl = document.getElementById("email");
+      const passwordEl = document.getElementById("password");
+      const rememberEl = document.getElementById("remember");
+      const publicTokenEl = document.getElementById("publicToken");
+
+      const authTextEl = document.getElementById("authText");
+      const btnLogout = document.getElementById("btnLogout");
+
+      const btnSignup = document.getElementById("btnSignup");
+      const btnSignin = document.getElementById("btnSignin");
+      const btnClear = document.getElementById("btnClear");
+
+      const btnCreateLink = document.getElementById("btnCreateLink");
+      const btnOpenLink = document.getElementById("btnOpenLink");
+      const btnExchange = document.getElementById("btnExchange");
+
+      const btnSyncDb = document.getElementById("btnSyncDb");
+      const btnGetAll = document.getElementById("btnGetAll");
+      const btnRecent = document.getElementById("btnRecent");
+
+      // ---------- Helpers ----------
+      function baseUrl() {
+        return apiBaseEl.value.trim().replace(/\/$/, "");
+      }
+
+      function log(obj) {
+        outEl.textContent =
+          typeof obj === "string" ? obj : JSON.stringify(obj, null, 2);
+      }
+
+      function setJwt(newJwt) {
+        jwt = (newJwt || "").trim() || null;
+        jwtEl.value = jwt || "";
+        const signedIn = !!jwt;
+
+        authTextEl.textContent = signedIn ? "Signed in" : "Signed out";
+        authTextEl.className = signedIn ? "ok" : "bad";
+
+        btnLogout.disabled = !signedIn;
+
+        // enable downstream buttons
+        btnCreateLink.disabled = !signedIn;
+        btnSyncDb.disabled = !signedIn;
+        btnGetAll.disabled = !signedIn;
+        btnRecent.disabled = !signedIn;
+
+        if (!signedIn) {
+          // reset plaid state
+          linkToken = null;
+          publicToken = null;
+          plaidHandler = null;
+          publicTokenEl.value = "";
+          btnOpenLink.disabled = true;
+          btnExchange.disabled = true;
+        }
+      }
+
+      function authHeaders() {
+        const token = (jwtEl.value || "").trim();
+        if (!token) throw new Error("Missing JWT. Sign in first.");
+        return { Authorization: `Bearer ${token}` };
+      }
+
+      async function requestJson(
+        path,
+        { method = "GET", body = null, headers = {} } = {}
+      ) {
+        const url = `${baseUrl()}${path}`;
+        const init = {
+          method,
+          headers: { ...headers },
+        };
+
+        if (body !== null) {
+          init.headers["Content-Type"] = "application/json";
+          init.body = JSON.stringify(body);
+        }
+
+        const res = await fetch(url, init);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          throw new Error(
+            data?.detail ||
+              data?.error ||
+              `${method} ${path} failed (${res.status})`
+          );
+        }
+        return data;
+      }
+
+      function extractSupabaseAccessToken(signinResponse) {
+        // if backend returns {status, data: {session:{access_token}}}
+        return (
+          signinResponse?.data?.session?.access_token ||
+          signinResponse?.session?.access_token ||
+          null
+        );
+      }
+
+      // ---------- Auth actions ----------
+      btnSignup.addEventListener("click", async () => {
+        try {
+          log("Signing up...");
+          const payload = {
+            email: emailEl.value.trim(),
+            password: passwordEl.value,
+          };
+          const data = await requestJson("/api/auth/signup", {
+            method: "POST",
+            body: payload,
+          });
+          log({ step: "signup", data });
+        } catch (err) {
+          log({ step: "signup_error", error: String(err) });
+        }
+      });
+
+      btnSignin.addEventListener("click", async () => {
+        try {
+          log("Signing in...");
+          const payload = {
+            email: emailEl.value.trim(),
+            password: passwordEl.value,
+          };
+          const data = await requestJson("/api/auth/signin", {
+            method: "POST",
+            body: payload,
+          });
+          const token = extractSupabaseAccessToken(data);
+
+          if (!token) {
+            log({
+              step: "signin",
+              data,
+              note: "Could not auto-extract access_token. Copy it manually into the JWT box.",
+            });
+            return;
+          }
+
+          setJwt(token);
+
+          if (rememberEl.checked) {
+            localStorage.setItem("rae_jwt", token);
+          } else {
+            localStorage.removeItem("rae_jwt");
+          }
+
+          log({ step: "signin", ok: true });
+        } catch (err) {
+          log({ step: "signin_error", error: String(err) });
+        }
+      });
+
+      btnLogout.addEventListener("click", () => {
+        localStorage.removeItem("rae_jwt");
+        setJwt(null);
+        log({ step: "logout", ok: true });
+      });
+
+      btnClear.addEventListener("click", () => log({}));
+
+      // allow manual paste into JWT box
+      jwtEl.addEventListener("input", () => {
+        const t = jwtEl.value.trim();
+        setJwt(t || null);
+      });
+
+      // ---------- Plaid actions ----------
+      btnCreateLink.addEventListener("click", async () => {
+        try {
+          log("Creating link token...");
+          const data = await requestJson("/api/create_link_token", {
+            method: "POST",
+            headers: { ...authHeaders() },
+          });
+
+          linkToken = data.link_token;
+          if (!linkToken) throw new Error("No link_token in response");
+
+          // Create Plaid handler
+          plaidHandler = Plaid.create({
+            token: linkToken,
+            onSuccess: (pt, metadata) => {
+              publicToken = pt;
+              publicTokenEl.value = pt;
+              btnExchange.disabled = false;
+              log({
+                step: "plaid_link_success",
+                public_token: "[captured]",
+                metadata,
+              });
+            },
+            onExit: (err, metadata) => {
+              if (err)
+                log({ step: "plaid_link_exit_error", error: err, metadata });
+              else log({ step: "plaid_link_exit", metadata });
+            },
+            onEvent: (eventName, metadata) => {
+              console.log("Plaid event:", eventName, metadata);
+            },
+          });
+
+          btnOpenLink.disabled = false;
+          log({
+            step: "create_link_token",
+            ok: true,
+            data: { ...data, link_token: "[redacted]" },
+          });
+        } catch (err) {
+          log({ step: "create_link_token_error", error: String(err) });
+        }
+      });
+
+      btnOpenLink.addEventListener("click", () => {
+        try {
+          if (!plaidHandler) throw new Error("Create link token first.");
+          plaidHandler.open();
+        } catch (err) {
+          log({ step: "open_link_error", error: String(err) });
+        }
+      });
+
+      btnExchange.addEventListener("click", async () => {
+        try {
+          const pt = (publicTokenEl.value || "").trim();
+          if (!pt)
+            throw new Error("Missing public_token. Complete Plaid Link first.");
+          log("Exchanging public token...");
+
+          const data = await requestJson("/api/exchange_public_token", {
+            method: "POST",
+            headers: { ...authHeaders() },
+            body: { public_token: pt },
+          });
+
+          // success means DB stored encrypted access token
+          log({ step: "exchange_public_token", ok: true, data });
+          btnSyncDb.disabled = false;
+        } catch (err) {
+          log({ step: "exchange_public_token_error", error: String(err) });
+        }
+      });
+
+      // ---------- DB / Transactions ----------
+      btnSyncDb.addEventListener("click", async () => {
+        try {
+          log("Syncing transactions into DB...");
+          const data = await requestJson("/api/transactions/sync/", {
+            method: "POST",
+            headers: { ...authHeaders() },
+          });
+          log({ step: "sync_db", ok: true, data });
+        } catch (err) {
+          log({ step: "sync_db_error", error: String(err) });
+        }
+      });
+
+      // Optional GET routes — change these if your actual endpoints differ
+      btnGetAll.addEventListener("click", async () => {
+        try {
+          log("Fetching all transactions...");
+          const data = await requestJson("/api/transactions/all", {
+            method: "GET",
+            headers: { ...authHeaders() },
+          });
+          log({ step: "get_all_transactions", ok: true, data });
+        } catch (err) {
+          log({
+            step: "get_all_transactions_error",
+            error: String(err),
+            hint: "If you don't have /api/transactions/all, update this button path.",
+          });
+        }
+      });
+
+      btnRecent.addEventListener("click", async () => {
+        try {
+          log("Fetching recent transactions...");
+          const data = await requestJson("/api/transactions/recent", {
+            method: "GET",
+            headers: { ...authHeaders() },
+          });
+          log({ step: "get_recent_transactions", ok: true, data });
+        } catch (err) {
+          log({
+            step: "get_recent_transactions_error",
+            error: String(err),
+            hint: "If you don't have /api/transactions/recent, update this button path.",
+          });
+        }
+      });
+
+      // ---------- Initialize from localStorage ----------
+      (function init() {
+        const saved = localStorage.getItem("rae_jwt");
+        if (saved) {
+          rememberEl.checked = true;
+          setJwt(saved);
+          log({
+            note: "Loaded JWT from localStorage. You can now create a link token.",
+          });
+        } else {
+          setJwt(null);
+          log({ note: "Sign in first, then test Plaid + DB sync." });
+        }
+      })();
+    </script>
+  </body>
+</html>
